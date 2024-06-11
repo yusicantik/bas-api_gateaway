@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"api_gateaway/model"
+	"api_gateaway/models"
+	"api_gateaway/utils"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -24,23 +27,50 @@ func (a *accountImplement) GetAccount(g *gin.Context) {
 	queryParam := g.Request.URL.Query()
 	name := queryParam.Get("name")
 
+	accounts := []model.Account{}
+
+	orm := utils.NewDatabase().Orm
+	db, _ := orm.DB()
+
+	defer db.Close()
+
+	q := orm
+	if name != "" {
+		q = q.Where("name = ?", name)
+	}
+	result := q.Find(&accounts)
+	// result := orm.Find(&accounts, "name = ?", name)
+	if result.Error != nil {
+		g.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": result.Error,
+		})
+		return
+	}
+
 	g.JSON(http.StatusOK, gin.H{
 		"message": "Get Account Successfully",
-		"data":    name,
+		"data":    accounts,
 	})
 }
 
-type BodyPayloadAccount struct {
-	AccountID string
-	Name      string
-	Address   string
-}
+// type BodyPayloadAccount struct {
+// 	AccountID string
+// 	Name      string
+// 	Address   string
+// }
 
 func (a *accountImplement) CreateAccount(g *gin.Context) {
-	bodyPayload := BodyPayloadAccount{}
+	bodyPayload := model.Account{}
+
+	orm := utils.NewDatabase().Orm
+	db, _ := orm.DB()
+
+	defer db.Close()
 
 	err := g.BindJSON(&bodyPayload)
-	if err != nil {
+
+	result := orm.Create(&bodyPayload)
+	if result.Error != nil {
 		g.AbortWithError(http.StatusBadRequest, err)
 	}
 
@@ -51,34 +81,94 @@ func (a *accountImplement) CreateAccount(g *gin.Context) {
 }
 
 func (a *accountImplement) UpdateAccount(g *gin.Context) {
-	bodyPayload := BodyPayloadAccount{}
+	bodyPayload := models.Account{}
+
+	err := g.BindJSON(&bodyPayload)
+	if err != nil {
+		g.AbortWithStatusJSON(http.StatusBadRequest, err)
+		return
+	}
+
+	id := g.Param("id")
+
+	orm := utils.NewDatabase().Orm
+	db, _ := orm.DB()
+
+	defer db.Close()
+
+	user := models.Account{}
+	orm.First(&user, "account_id = ?", id)
+
+	if user.AccountID == "" {
+		g.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": "Data Not Found",
+		})
+		return
+	}
+
+	user.Name = bodyPayload.Name
+	user.Username = bodyPayload.Username
+	orm.Save(&user)
 
 	g.JSON(http.StatusOK, gin.H{
 		"message": "Update Account Successfully",
-		"data":    bodyPayload,
+		"data":    user,
 	})
 }
 
 func (a *accountImplement) DeleteAccount(g *gin.Context) {
 	id := g.Param("id")
 
+	orm := utils.NewDatabase().Orm
+	db, _ := orm.DB()
+
+	defer db.Close()
+	result := orm.Where("account_id = ?", id).Delete(&models.Account{})
+	if result.Error != nil {
+		g.AbortWithError(http.StatusBadRequest, result.Error)
+	}
 	g.JSON(http.StatusOK, gin.H{
 		"message": "Delete Account Successfully",
 		"data":    id,
 	})
 }
 
-type BodyPayloadBalance struct{}
+type BodyPayloadBalance struct {
+	AccountID string
+	Month     int
+}
 
 func (a *accountImplement) GetBalanceAccount(g *gin.Context) {
 	bodyPayloadBal := BodyPayloadBalance{}
-
 	err := g.BindJSON(&bodyPayloadBal)
+
 	if err != nil {
 		g.AbortWithError(http.StatusBadRequest, err)
 	}
 
+	orm := utils.NewDatabase().Orm
+	db, _ := orm.DB()
+	defer db.Close()
+
+	sumResult := struct {
+		Total int
+	}{}
+
+	result := orm.Model(&models.Transaction{}).
+		Select("sum(amount) as total").Where("account_id = ? AND date_part( 'Month' , transaction_date) = ?", bodyPayloadBal.AccountID, bodyPayloadBal.Month).
+		Group("account_id").
+		Scan(&sumResult)
+
+	if result.Error != nil {
+		g.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+			"error": result.Error,
+		})
+		return
+	}
+
 	g.JSON(http.StatusOK, gin.H{
-		"message": "Hello Guys this API rest for later",
+		"message": "Get Total Successfully",
+		"data":    sumResult,
 	})
+
 }

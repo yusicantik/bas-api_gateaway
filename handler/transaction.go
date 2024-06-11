@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"api_gateaway/models"
+	"api_gateaway/utils"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -16,18 +19,25 @@ func NewTransaction() TransactionInterface {
 	return &transactionImplement{}
 }
 
-type BodyPayloadTransaction struct{}
-
 func (b *transactionImplement) TransferBank(g *gin.Context) {
-
-	bodyPayloadTransaction := BodyPayloadTransaction{}
+	bodyPayloadTransaction := models.Transaction{}
 	err := g.BindJSON(&bodyPayloadTransaction)
-
 	if err != nil {
-		g.AbortWithError(http.StatusBadRequest, err)
+		fmt.Println(err.Error())
+	}
+
+	orm := utils.NewDatabase().Orm
+	db, _ := orm.DB()
+
+	defer db.Close()
+	result := orm.Create(&bodyPayloadTransaction)
+
+	if result.Error != nil {
+		g.AbortWithError(http.StatusBadRequest, result.Error)
 	}
 
 	g.JSON(http.StatusOK, gin.H{
-		"message": "Hello Guys this API rest for late",
+		"message": "Create Data Txn Successfully",
+		"data":    bodyPayloadTransaction,
 	})
 }

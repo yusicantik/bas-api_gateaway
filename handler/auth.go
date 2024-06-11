@@ -2,6 +2,7 @@ package handler
 
 import (
 	"api_gateaway/usecase"
+	"api_gateaway/utils"
 	"log"
 	"net/http"
 
@@ -26,7 +27,14 @@ type BodyPayloadAuth struct {
 func (a *authImplement) Login(g *gin.Context) {
 
 	bodyPayloadAuth := BodyPayloadAuth{}
+
+	orm := utils.NewDatabase().Orm
+	db, _ := orm.DB()
+
+	defer db.Close()
+
 	err := g.BindJSON(&bodyPayloadAuth)
+
 	if err != nil {
 		log.Panic(err)
 	}
