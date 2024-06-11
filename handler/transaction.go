@@ -5,6 +5,7 @@ import (
 	"api_gateaway/utils"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,6 +26,8 @@ func (b *transactionImplement) TransferBank(g *gin.Context) {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
+	timeNow := time.Now()
+	bodyPayloadTransaction.TransactionDate = &timeNow
 
 	orm := utils.NewDatabase().Orm
 	db, _ := orm.DB()
